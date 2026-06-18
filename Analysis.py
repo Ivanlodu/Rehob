@@ -55,11 +55,7 @@ class Analysis:
         self.model.fit(x_train, y_train)
 
         score = self.model.score(x_val, y_val)
-        print(f'Validation Accuracy: {score:.4f}')
-
-        #importance = pd.Series(self.model.feature_importances_, index=x_train.columns).sort_values(ascending=False)
-        #print("Top 20 Feature Importances:")
-        #print(importance.head(20))
+        #print(f'Validation Accuracy: {score:.4f}')
 
 
     def train_model2(self):
@@ -80,6 +76,7 @@ class Analysis:
         scaler = StandardScaler()
         x_train_scaled = scaler.fit_transform(x_train)
         x_val_scaled = scaler.transform(x_val)
+        self.scaler = scaler
 
         self.lr_model = LogisticRegression(max_iter=1000)
         self.lr_model.fit(x_train_scaled, y_train)
@@ -94,10 +91,37 @@ class Analysis:
         self.ada_model.fit(x_train_scaled, y_train)
 
         score = self.ada_model.score(x_val_scaled, y_val)
-        print(f'LR + AdaBoost Accuracy: {score:.4f}')
+        #print(f'LR + AdaBoost Accuracy: {score:.4f}')
+
+    def ensemble(self):
+        self.train_model()
+        self.train_model2()
+        x_val = self.validate.drop(columns=['Winner', 'date'])
+        y_val = self.validate['Winner']
+
+        odds_to_drop = ['R_odds', 'B_odds', 'R_ev', 'B_ev', 
+                        'r_dec_odds', 'b_dec_odds', 'r_ko_odds', 
+                        'b_ko_odds', 'r_sub_odds', 'b_sub_odds']
+
+        # RF uses full data with odds
+        x_val_rf = x_val
+
+        # LR/Ada uses scaled data without odds
+        x_val_lr = x_val.drop(columns=odds_to_drop)
+        x_val_lr_scaled = self.scaler.transform(x_val_lr)
+
+        # get probabilities from each model
+        rf_proba  = self.model.predict_proba(x_val_rf)[:, 1]
+        ada_proba = self.ada_model.predict_proba(x_val_lr_scaled)[:, 1]
+
+        # combine
+        combined = (0.6 * rf_proba) + (0.4 * ada_proba)
+
+        predictions = (combined >= 0.5).astype(int)
+        accuracy = (predictions == y_val).mean()
+        print(f'Ensemble Accuracy: {accuracy:.4f}')
 
 analysis = Analysis('ufc-master.csv')
 analysis.clean()
 analysis.split()
-analysis.train_model()
-analysis.train_model2()
+analysis.ensemble()
