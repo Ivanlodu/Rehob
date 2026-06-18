@@ -2,6 +2,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 #import seaborn as sns
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegression
 import numpy as np
 
 class Analysis:
@@ -60,17 +62,29 @@ class Analysis:
 
 
     def train_model2(self):
+        
         x_train = self.train.drop(columns=['Winner', 'date'])
         y_train = self.train['Winner']
 
         x_val = self.validate.drop(columns=['Winner', 'date'])
         y_val = self.validate['Winner']
 
+        odds_to_drop = ['R_odds', 'B_odds', 'R_ev', 'B_ev', 
+                'r_dec_odds', 'b_dec_odds', 'r_ko_odds', 
+                'b_ko_odds', 'r_sub_odds', 'b_sub_odds']
+
+        x_train = x_train.drop(columns=odds_to_drop)
+        x_val = x_val.drop(columns=odds_to_drop)
+
+        scaler = StandardScaler()
+        x_train_scaled = scaler.fit_transform(x_train)
+        x_val_scaled = scaler.transform(x_val)
+
         from sklearn.linear_model import LogisticRegression
         self.model = LogisticRegression(max_iter=1000)
-        self.model.fit(x_train, y_train)
+        self.model.fit(x_train_scaled, y_train)
 
-        score = self.model.score(x_val, y_val)
+        score = self.model.score(x_val_scaled, y_val)
         print(f'Validation Accuracy: {score:.4f}')
 
 analysis = Analysis('ufc-master.csv')
