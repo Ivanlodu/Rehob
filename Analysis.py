@@ -121,7 +121,93 @@ class Analysis:
         accuracy = (predictions == y_val).mean()
         print(f'Ensemble Accuracy: {accuracy:.4f}')
 
+    def predict_fight(self, fighter1, fighter2):
+        raw = pd.read_csv('ufc-master.csv')
+        
+        # search both corner combinations
+        f1_as_red = raw[raw['R_fighter'] == fighter1].sort_values('date')
+        f1_as_blue = raw[raw['B_fighter'] == fighter1].sort_values('date')
+        f2_as_red = raw[raw['R_fighter'] == fighter2].sort_values('date')
+        f2_as_blue = raw[raw['B_fighter'] == fighter2].sort_values('date')
+
+        if f1_as_red.empty and f1_as_blue.empty:
+            print(f'{fighter1} not found in dataset')
+            return
+        if f2_as_red.empty and f2_as_blue.empty:
+            print(f'{fighter2} not found in dataset')
+            return
+
+        # get most recent fight regardless of corner
+        f1_latest = pd.concat([f1_as_red, f1_as_blue]).sort_values('date').iloc[-1]
+        f2_latest = pd.concat([f2_as_red, f2_as_blue]).sort_values('date').iloc[-1]
+
+        # build a synthetic fight row using fighter1 as Red, fighter2 as Blue
+        fight_row = {}
+
+        # pull Red stats from fighter1's last fight
+        for col in raw.columns:
+            if col.startswith('R_') and col not in ['R_fighter']:
+                if fighter1 in f1_as_red['R_fighter'].values:
+                    fight_row[col] = f1_latest[col]
+                elif col.replace('R_', 'B_') in raw.columns:
+                    fight_row[col] = f1_latest[col.replace('R_', 'B_')]
+
+        # pull Blue stats from fighter2's last fight
+        for col in raw.columns:
+            if col.startswith('B_') and col not in ['B_fighter']:
+                if fighter2 in f2_as_blue['B_fighter'].values:
+                    fight_row[col] = f2_latest[col]
+                elif col.replace('B_', 'R_') in raw.columns:
+                    fight_row[col] = f2_latest[col.replace('B_', 'R_')]
+
+        fight_row['date'] = pd.Timestamp.now()
+        fight_row['Winner'] = 0
+        fight_row['title_bout'] = 1
+        fight_row['no_of_rounds'] = 5
+        fight_row['empty_arena'] = 0
+        r_rank = f1_latest.get('R_match_weightclass_rank', 99)
+        b_rank = f2_latest.get('B_match_weightclass_rank', 99)
+
+        if r_rank == b_rank:  # both unranked or equal
+            fight_row['better_rank'] = 'neither'
+        else:
+            fight_row['better_rank'] = 'Red' if r_rank < b_rank else 'Blue'
+
+            fight_row['weight_class'] = f1_latest['weight_class']
+            fight_row['gender'] = f1_latest['gender']
+
+        # fill any dif columns
+        for col in raw.columns:
+            if col.endswith('_dif') and col not in fight_row:
+                fight_row[col] = 0
+
+        df = pd.DataFrame([fight_row])
+        df['date'] = pd.to_datetime(df['date'])
+
+        # apply same cleaning as training data
+        df = pd.get_dummies(df, columns=['R_Stance', 'B_Stance', 'weight_class', 'gender', 'better_rank'])
+
+        # align columns to match training data
+        model_cols = self.model.feature_names_in_
+        for col in model_cols:
+            if col not in df.columns:
+                df[col] = 0  # add missing columns as 0
+        df = df[model_cols]  # reorder to match exactly
+
+        # fill nulls
+        df = df.fillna(0)
+
+        # get RF probability
+        rf_proba = self.model.predict_proba(df)[:, 1][0]
+
+        print(f'\nPredicting: {fighter1} (Red) vs {fighter2} (Blue)')
+        print(f'{fighter1} win probability: {rf_proba:.2%}')
+        print(f'{fighter2} win probability: {1 - rf_proba:.2%}')
+        print(f'Predicted winner: {fighter1 if rf_proba >= 0.5 else fighter2}')
+
+
 analysis = Analysis('ufc-master.csv')
 analysis.clean()
 analysis.split()
 analysis.ensemble()
+analysis.predict_fight('Ilia Topuria', 'Justin Gaethje')
