@@ -21,7 +21,7 @@ class Analysis:
     
         # encode target
         df['Winner'] = df['Winner'].map({'Red': 1, 'Blue': 0})
-        df = pd.get_dummies(df, columns=['R_Stance', 'B_Stance', 'weight_class', 'gender'])
+        df = pd.get_dummies(df, columns=['R_Stance', 'B_Stance', 'weight_class', 'gender','better_rank'])
         
         # fill nulls
         rank_cols = [col for col in df.columns if '_rank' in col]
@@ -48,15 +48,20 @@ class Analysis:
         x_val = self.validate.drop(columns=['Winner', 'date'])
         y_val = self.validate['Winner']
 
-        self.model = RandomForestClassifier(n_estimators=100, random_state=42)
+        self.model = RandomForestClassifier(n_estimators=500, random_state=42,max_depth=10, min_samples_split=5, max_features='sqrt')
         self.model.fit(x_train, y_train)
 
         score = self.model.score(x_val, y_val)
         print(f'Validation Accuracy: {score:.4f}')
+
+        importance = pd.Series(self.model.feature_importances_, index=x_train.columns).sort_values(ascending=False)
+        print("Top 20 Feature Importances:")
+        print(importance.head(20))
+
+
     
-# Then you use it like:
+
 analysis = Analysis('ufc-master.csv')
 analysis.clean()
 analysis.split()
 analysis.train_model()
-print(analysis.data.columns.tolist())
