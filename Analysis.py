@@ -54,14 +54,27 @@ class Analysis:
         score = self.model.score(x_val, y_val)
         print(f'Validation Accuracy: {score:.4f}')
 
-        importance = pd.Series(self.model.feature_importances_, index=x_train.columns).sort_values(ascending=False)
-        print("Top 20 Feature Importances:")
-        print(importance.head(20))
+        #importance = pd.Series(self.model.feature_importances_, index=x_train.columns).sort_values(ascending=False)
+        #print("Top 20 Feature Importances:")
+        #print(importance.head(20))
 
 
-    
+    def train_model2(self):
+        x_train = self.train.drop(columns=['Winner', 'date'])
+        y_train = self.train['Winner']
+
+        x_val = self.validate.drop(columns=['Winner', 'date'])
+        y_val = self.validate['Winner']
+
+        from sklearn.linear_model import LogisticRegression
+        self.model = LogisticRegression(max_iter=1000)
+        self.model.fit(x_train, y_train)
+
+        score = self.model.score(x_val, y_val)
+        print(f'Validation Accuracy: {score:.4f}')
 
 analysis = Analysis('ufc-master.csv')
 analysis.clean()
 analysis.split()
 analysis.train_model()
+analysis.train_model2()
