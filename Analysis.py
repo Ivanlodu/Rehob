@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import AdaBoostClassifier 
 import numpy as np
 
 class Analysis:
@@ -80,12 +81,20 @@ class Analysis:
         x_train_scaled = scaler.fit_transform(x_train)
         x_val_scaled = scaler.transform(x_val)
 
-        from sklearn.linear_model import LogisticRegression
-        self.model = LogisticRegression(max_iter=1000)
-        self.model.fit(x_train_scaled, y_train)
+        self.lr_model = LogisticRegression(max_iter=1000)
+        self.lr_model.fit(x_train_scaled, y_train)
 
-        score = self.model.score(x_val_scaled, y_val)
-        print(f'Validation Accuracy: {score:.4f}')
+        self.ada_model = AdaBoostClassifier(
+            estimator=self.lr_model,  
+            n_estimators=100, 
+            random_state=42,
+            algorithm='SAMME'  
+        )
+
+        self.ada_model.fit(x_train_scaled, y_train)
+
+        score = self.ada_model.score(x_val_scaled, y_val)
+        print(f'LR + AdaBoost Accuracy: {score:.4f}')
 
 analysis = Analysis('ufc-master.csv')
 analysis.clean()
