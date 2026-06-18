@@ -120,6 +120,34 @@ class Analysis:
         predictions = (combined >= 0.5).astype(int)
         accuracy = (predictions == y_val).mean()
         print(f'Ensemble Accuracy: {accuracy:.4f}')
+    
+    def testcase(self):
+        self.train_model()
+        self.train_model2()
+        x_test = self.test.drop(columns=['Winner', 'date'])
+        y_test = self.test['Winner']
+
+        odds_to_drop = ['R_odds', 'B_odds', 'R_ev', 'B_ev', 
+                        'r_dec_odds', 'b_dec_odds', 'r_ko_odds', 
+                        'b_ko_odds', 'r_sub_odds', 'b_sub_odds']
+
+        # RF uses full data with odds
+        x_test_rf = x_test
+
+        # LR/Ada uses scaled data without odds
+        x_test_lr = x_test.drop(columns=odds_to_drop)
+        x_test_lr_scaled = self.scaler.transform(x_test_lr)
+
+        # get probabilities from each model
+        rf_proba  = self.model.predict_proba(x_test_rf)[:, 1]
+        ada_proba = self.ada_model.predict_proba(x_test_lr_scaled)[:, 1]
+
+        # combine
+        combined = (0.6 * rf_proba) + (0.4 * ada_proba)
+
+        predictions = (combined >= 0.5).astype(int)
+        accuracy = (predictions == y_test).mean()
+        print(f'Test Accuracy: {accuracy:.4f}')
 
     def predict_fight(self, fighter1, fighter2):
         raw = pd.read_csv('ufc-master.csv')
@@ -167,14 +195,24 @@ class Analysis:
         fight_row['empty_arena'] = 0
         r_rank = f1_latest.get('R_match_weightclass_rank', 99)
         b_rank = f2_latest.get('B_match_weightclass_rank', 99)
+        # fight_row['R_odds'] = -450 
+        # fight_row['R_ev'] = -450
+        # fight_row['B_ev'] = +340
+        # fight_row['r_dec_odds'] = 0
+        # fight_row['b_dec_odds'] = 0
+        #fight_row['r_ko_odds'] = 0
+        #fight_row['b_ko_odds'] = 0
+        #fight_row['r_sub_odds'] = 0
+        #fight_row['b_sub_odds'] = 0
 
-        if r_rank == b_rank:  # both unranked or equal
+        if r_rank == b_rank:
             fight_row['better_rank'] = 'neither'
         else:
             fight_row['better_rank'] = 'Red' if r_rank < b_rank else 'Blue'
 
-            fight_row['weight_class'] = f1_latest['weight_class']
-            fight_row['gender'] = f1_latest['gender']
+        
+        fight_row['weight_class'] = f1_latest['weight_class']
+        fight_row['gender'] = f1_latest['gender']
 
         # fill any dif columns
         for col in raw.columns:
@@ -210,4 +248,5 @@ analysis = Analysis('ufc-master.csv')
 analysis.clean()
 analysis.split()
 analysis.ensemble()
-analysis.predict_fight('Ilia Topuria', 'Justin Gaethje')
+analysis.testcase()
+#analysis.predict_fight('Mauricio Ruffy', 'Michael Chandler')
